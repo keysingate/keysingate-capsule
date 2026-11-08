@@ -12,7 +12,8 @@ All data in `files/` is made up for this test; it holds no real key or money.
 1. **Open the page.** Double-click `ksg-owner.html`. Expected: the page opens in your browser and,
    within a few seconds, shows a footer line "The module in this page (SHA-256): …" with a long hex
    number. Compare it with the second line of `SHA256SUMS` (the one ending `module-inside-the-page`):
-   it must be the same. (Optional: `shasum -a 256 ksg-owner.html` must equal the first line.)
+   it must be the same. (Optional: `shasum -a 256 ksg-owner.html` must equal the first line. A page
+   opened from disk shows no "whole file" line: it cannot read its own bytes. That is expected.)
 2. **Open a key (test T2).** Under "Open key": choose the file `files/t2/owner.ksgbak`, paste the
    text of `files/t2/good.txt` into the password field, press **Open key**. Expected: it opens
    (takes a few seconds), the password field empties, a "connect" screen appears.

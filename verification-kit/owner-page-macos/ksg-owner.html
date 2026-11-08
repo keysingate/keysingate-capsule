@@ -70,7 +70,8 @@
 
 <footer>
   <div>The module in this page (SHA-256): <span id="code-hash">…</span></div>
-  <div>Compare it with the line for this file in <code>SHA256SUMS</code> that came with it.</div>
+  <div id="file-row" hidden>This whole file (SHA-256): <span id="file-hash">…</span></div>
+  <div>Compare them with the two lines of <code>SHA256SUMS</code> that came with it (the first line is the whole file, the other the module). The whole-file number is shown only when the reader serves this page to you over the network; a page opened from disk cannot read its own bytes — use <code>sha256sum -c SHA256SUMS</code> then.</div>
 </footer>
 
 <script>
@@ -10944,6 +10945,14 @@ let wasm_bindgen = (function(exports) {
   const { check_password, OwnerKey, describe_round, verify_export, AnchorCheck } = wasm_bindgen;
   const hex = (buf) => [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, '0')).join('');
   $('code-hash').textContent = hex(await crypto.subtle.digest('SHA-256', wasmBytes));
+  // Served by the reader (https, or http on loopback): the page can read its own bytes and say their hash.
+  if (location.protocol === 'https:' || location.protocol === 'http:') {
+    try {
+      const own = await (await fetch(location.pathname, { cache: 'no-store' })).arrayBuffer();
+      $('file-hash').textContent = hex(await crypto.subtle.digest('SHA-256', own));
+      $('file-row').hidden = false;
+    } catch (e) { /* the number is simply not shown */ }
+  }
   document.documentElement.dataset.ready = '1';
 
   let key = null;
@@ -11017,6 +11026,10 @@ let wasm_bindgen = (function(exports) {
   }
 
   // 2. Connect: the line is the one the reader printed (`http://127.0.0.1:PORT/?t=TOKEN`).
+  // Served by the reader at the printed address: the line is already in the address bar.
+  if ((location.protocol === 'https:' || location.protocol === 'http:') && /[?&]t=/.test(location.search)) {
+    $('line').value = location.origin + '/' + location.search;
+  }
   let base = null;
   const word = () => new Promise((resolve) => {
     $('s3').hidden = false;
