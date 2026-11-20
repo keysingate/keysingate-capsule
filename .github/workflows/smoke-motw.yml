@@ -1,0 +1,63 @@
+# S9.1 + S9.2-fact (S9a): Mark-of-the-Web fact check + published-file ad-hoc check.
+# INFORMATIONAL ONLY: these jobs never fail on the *content* of the findings.
+# A red run here means infra/download error, never "quarantine present".
+# Trigger scoped with `paths` so pushes to other smoke/** branches don't fire it.
+name: smoke-motw
+'on':
+  push:
+    branches:
+      - smoke/bare-beta-2-nomotw
+    paths:
+      - .github/workflows/smoke-motw.yml
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  motw-windows:
+    runs-on: windows-latest
+    steps:
+      - shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Continue'
+          $url = 'https://github.com/keysingate/keysingate-capsule/releases/download/bare-beta-2/ksg-capsule-windows-x86_64.exe'
+          Invoke-WebRequest -Uri $url -OutFile ksg.exe
+          '--- sha256 (expect 7d63f20a9368f1a10dad0b6d9152a0ba3e2b91d16c32de7c205e5f00b9bf76a2) ---'
+          (Get-FileHash .\ksg.exe -Algorithm SHA256).Hash
+          '--- Get-Item -Stream * ---'
+          $streams = Get-Item -Path .\ksg.exe -Stream * | Out-String
+          $streams | Write-Output
+          $zone = Get-Content -Path .\ksg.exe -Stream Zone.Identifier -ErrorAction SilentlyContinue
+          if ($zone) { $verdict = 'Zone.Identifier PRESENT (browser-style download would warn)' } else { $verdict = 'Zone.Identifier ABSENT (Invoke-WebRequest sets no MotW)' }
+          $verdict | Write-Output
+          "# smoke-motw windows`n`n``````n$streams`n``````n`n**Verdict:** $verdict`n" | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          exit 0
+  motw-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Download via curl (no quarantine expected) and inspect
+        run: |
+          set -x
+          curl -fL -o ksg-macos 'https://github.com/keysingate/keysingate-capsule/releases/download/bare-beta-2/ksg-capsule-macos-universal'
+          echo '--- sha256 (expect 1995214f839f1754b4a7a26229fa2dc3bb7bcf24e19675cb3ff14a3f115d63fc) ---'
+          shasum -a 256 ksg-macos
+          echo '--- xattr -l ---'
+          xattr -l ksg-macos || true
+          if xattr -p com.apple.quarantine ksg-macos >/dev/null 2>&1; then QVERDICT='com.apple.quarantine PRESENT'; else QVERDICT='com.apple.quarantine ABSENT (curl sets no quarantine)'; fi
+          echo "--- $QVERDICT ---"
+          echo '--- S9.2 fact: is the PUBLISHED bare-beta-2 file ad-hoc signed? ---'
+          codesign -dv --verbose=2 ksg-macos || true
+          codesign -vvv --deep --strict ksg-macos || true
+          lipo -info ksg-macos
+          {
+            echo '## smoke-motw macos'
+            echo '```'
+            shasum -a 256 ksg-macos
+            xattr -l ksg-macos || true
+            echo "Verdict: $QVERDICT"
+            echo '--- codesign -dv (published bare-beta-2 file) ---'
+            codesign -dv --verbose=2 ksg-macos 2>&1 || true
+            codesign -vvv --deep --strict ksg-macos 2>&1 || true
+            lipo -info ksg-macos
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit 0
