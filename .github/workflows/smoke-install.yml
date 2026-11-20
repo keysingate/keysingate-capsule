@@ -25,7 +25,8 @@ jobs:
         run: |
           set -ex
           brew tap keysingate/capsule https://github.com/keysingate/keysingate-capsule
-          brew install --formula ./Formula/ksg-capsule.rb
+          cp ./Formula/ksg-capsule.rb "$(brew --repo keysingate/capsule)/Formula/ksg-capsule.rb"
+          brew install keysingate/capsule/ksg-capsule
           ksg-capsule --help
           echo "brew: tap + install + ksg-capsule --help exit 0" >> "$GITHUB_STEP_SUMMARY"
   scoop-install:
