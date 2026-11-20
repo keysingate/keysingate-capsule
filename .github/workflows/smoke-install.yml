@@ -25,6 +25,7 @@ jobs:
         run: |
           set -ex
           brew tap keysingate/capsule https://github.com/keysingate/keysingate-capsule
+          mkdir -p "$(brew --repo keysingate/capsule)/Formula"
           cp ./Formula/ksg-capsule.rb "$(brew --repo keysingate/capsule)/Formula/ksg-capsule.rb"
           brew install keysingate/capsule/ksg-capsule
           ksg-capsule --help
