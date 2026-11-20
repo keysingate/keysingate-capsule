@@ -6,7 +6,9 @@ class KsgCapsule < Formula
   desc "KeysInGate capsule controller"
   homepage "https://github.com/keysingate/keysingate-capsule"
   version "bare-beta-2"
-  license "Apache-2.0"
+  # Controller crate ksg-capsule-reader is under LICENSE-PROPRIETARY
+  # (free for internal use); Apache-2.0 covers only ksg-core-v2/ksg-verify-v2.
+  license :cannot_represent
 
   on_macos do
     url "https://github.com/keysingate/keysingate-capsule/releases/download/bare-beta-2/ksg-capsule-macos-universal"

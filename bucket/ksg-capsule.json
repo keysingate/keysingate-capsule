@@ -2,7 +2,7 @@
   "version": "bare-beta-2",
   "description": "KeysInGate capsule controller",
   "homepage": "https://github.com/keysingate/keysingate-capsule",
-  "license": "Apache-2.0",
+  "license": "Proprietary",
   "architecture": {
     "64bit": {
       "url": "https://github.com/keysingate/keysingate-capsule/releases/download/bare-beta-2/ksg-capsule-windows-x86_64.exe",
