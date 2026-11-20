@@ -91,6 +91,52 @@ Authenticode certificate) needs paid certificates and a publisher — it was not
 **If anything fails, build the controller yourself from this repository**: see
 [Build the controller from source](#build-the-controller-from-source).
 
+## Install without certificates
+
+No paid certificates are used: the `bare-beta-2` binaries carry no publisher
+signature, and nothing below disables Gatekeeper or SmartScreen.
+
+- **Command-line download sets no “internet mark” (fact, CI-proven).**
+  Downloading with `curl` (macOS) or `Invoke-WebRequest` (Windows) puts no
+  quarantine mark on the file: `xattr -l` is empty, `Get-Item -Stream *` shows
+  only `:$DATA` — green run
+  [smoke-motw](https://github.com/keysingate/keysingate-capsule/actions/runs/44730351564).
+  ```bash
+  curl -L -o ksg-capsule https://github.com/keysingate/keysingate-capsule/releases/download/bare-beta-2/ksg-capsule-macos-universal
+  ```
+  ```powershell
+  Invoke-WebRequest -OutFile ksg.exe https://github.com/keysingate/keysingate-capsule/releases/download/bare-beta-2/ksg-capsule-windows-x86_64.exe
+  ```
+- **Package managers (no new repos; install straight from this repo).**
+  Proven in CI (`ksg-capsule --help` exit 0):
+  ```bash
+  brew tap keysingate/capsule https://github.com/keysingate/keysingate-capsule
+  brew install keysingate/capsule/ksg-capsule
+  ```
+  ```powershell
+  scoop bucket add ksg https://github.com/keysingate/keysingate-capsule
+  scoop install ksg/ksg-capsule
+  ```
+  The controller crate `ksg-capsule-reader` is under `LICENSE-PROPRIETARY`
+  (free for internal use); Apache-2.0 covers only `ksg-core-v2`/`ksg-verify-v2`.
+- **About the `bare-beta-2` macOS file (fact, CI-proven).**
+  The published `ksg-capsule-macos-universal` carries only the linker’s signature
+  (`flags=0x20002(adhoc,linker-signed)`): the strict check
+  `codesign -vvv --deep --strict` does not pass, but the file runs on Apple
+  Silicon (the S8 smoke scenario). The release is **not** re-published and the
+  tag is untouched; an explicit publisher-less (ad-hoc) signature will enter
+  with the next release (workflow already in `main`).
+- **A browser download warns — act on the file, not on the system.**
+  A file saved by a browser carries the quarantine mark, so the OS warns on
+  double-click; the warning does not go away without a paid publisher
+  signature. Remove the mark from that file only, after checking `SHA256SUMS`:
+  macOS `xattr -d com.apple.quarantine ksg-capsule`
+  (or System Settings → Privacy & Security → “Open Anyway” for that file);
+  Windows `Unblock-File ksg.exe`
+  (or SmartScreen → “More info” → “Run anyway” for that file).
+  Do not turn Gatekeeper or SmartScreen off.
+- **Fallback:** [build the controller from source](#build-the-controller-from-source).
+
 ## Build and test
 
 ```bash
