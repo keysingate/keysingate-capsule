@@ -54,6 +54,8 @@ jobs:
           mkdir out
           lipo -create -output out/ksg-capsule-macos-universal target/aarch64-apple-darwin/release/ksg-capsule target/x86_64-apple-darwin/release/ksg-capsule
           chmod +x out/ksg-capsule-macos-universal
+          codesign --force --sign - out/ksg-capsule-macos-universal
+          codesign -vvv --deep --strict out/ksg-capsule-macos-universal
           ./out/ksg-capsule-macos-universal --help
           lipo -info out/ksg-capsule-macos-universal
       - uses: actions/upload-artifact@v4
