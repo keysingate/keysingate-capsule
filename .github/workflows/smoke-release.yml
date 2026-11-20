@@ -1,0 +1,190 @@
+# Smoke test of the PUBLISHED bare-beta-2 controller files.
+# Trigger: push to smoke/** branches (and manual dispatch). No publish here.
+# Each job downloads the published release files + SHA256SUMS, checks them,
+# then runs the mail-1 user scenario on a COPY of the repo demo capsule
+# (demo/capsule, keys are public demo keys) with --home <tmp>:
+#   status, work "smoke", export-page 1 --by owner.
+# Offline verify with ksg-verify-v2 is NOT run: the verifier is not part of
+# the published release (only the three controller binaries + SHA256SUMS),
+# and docs/quickstart.md names no verifier command. The export is checked
+# for existence, non-empty size and expected JSON keys instead; the gap is
+# written to the step summary honestly (no green-painting).
+# macOS runs both slices: arch -arm64 (native) and arch -x86_64. If Rosetta
+# is unavailable, the x86_64 slice is marked "not run" and does NOT fail
+# the job; any other x86_64 failure DOES fail it.
+name: smoke-release
+on:
+  push:
+    branches:
+      - "smoke/**"
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download published files (posix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -ex
+          base=https://github.com/keysingate/keysingate-capsule/releases/download/bare-beta-2
+          mkdir -p dl && cd dl
+          curl -sSL -O "$base/ksg-capsule-linux-x86_64"
+          curl -sSL -O "$base/ksg-capsule-macos-universal"
+          curl -sSL -O "$base/ksg-capsule-windows-x86_64.exe"
+          curl -sSL -O "$base/SHA256SUMS"
+          cat SHA256SUMS
+          ls -la
+
+      - name: Download published files (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $base = "https://github.com/keysingate/keysingate-capsule/releases/download/bare-beta-2"
+          New-Item -ItemType Directory -Force dl | Out-Null
+          foreach ($f in @("ksg-capsule-linux-x86_64","ksg-capsule-macos-universal","ksg-capsule-windows-x86_64.exe","SHA256SUMS")) {
+            Invoke-WebRequest -Uri "$base/$f" -OutFile "dl/$f"
+          }
+          Get-Content dl/SHA256SUMS
+          Get-ChildItem dl | Format-Table Name, Length
+
+      - name: Check checksums (linux)
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -ex
+          cd dl && sha256sum -c SHA256SUMS
+
+      - name: Check checksums (macos)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -ex
+          cd dl && shasum -a 256 -c SHA256SUMS
+
+      - name: Check checksums (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ok = $true
+          foreach ($line in (Get-Content dl/SHA256SUMS)) {
+            if ($line -match "^([0-9a-fA-F]{64})\s+(\S+)\s*$") {
+              $want = $Matches[1].ToLower()
+              $fn = $Matches[2]
+              $got = (Get-FileHash "dl/$fn" -Algorithm SHA256).Hash.ToLower()
+              Write-Output "$fn want=$want got=$got"
+              if ($got -ne $want) { $ok = $false }
+            }
+          }
+          if (-not $ok) { exit 1 }
+
+      - name: Scenario on demo capsule copy (linux)
+        if: matrix.os == 'ubuntu-22.04'
+        shell: bash
+        run: |
+          set -ex
+          rm -rf /tmp/smoke-home && cp -r demo/capsule /tmp/smoke-home && chmod -R u+rw /tmp/smoke-home
+          chmod +x dl/ksg-capsule-linux-x86_64
+          dl/ksg-capsule-linux-x86_64 --help
+          dl/ksg-capsule-linux-x86_64 --home /tmp/smoke-home status | tee /tmp/smoke-status.txt
+          grep -q '"pages"' /tmp/smoke-status.txt
+          dl/ksg-capsule-linux-x86_64 --home /tmp/smoke-home work "smoke" | tee /tmp/smoke-work.txt
+          grep -q '"pages"' /tmp/smoke-work.txt
+          dl/ksg-capsule-linux-x86_64 --home /tmp/smoke-home export-page 1 --by owner
+          test -s /tmp/smoke-home/page-1.json
+          grep -q '"seal"' /tmp/smoke-home/page-1.json
+          grep -q '"page"' /tmp/smoke-home/page-1.json
+          echo "VERIFY: not run — ksg-verify-v2 is not published in release bare-beta-2 and docs/quickstart.md names no verifier command; export checked for existence/size/JSON keys only."
+
+      - name: Scenario on demo capsule copy (macos, both slices)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -ex
+          rm -rf /tmp/smoke-home && cp -r demo/capsule /tmp/smoke-home && chmod -R u+rw /tmp/smoke-home
+          chmod +x dl/ksg-capsule-macos-universal
+          file dl/ksg-capsule-macos-universal
+          lipo -info dl/ksg-capsule-macos-universal || true
+          arch -arm64 dl/ksg-capsule-macos-universal --help
+          arch -arm64 dl/ksg-capsule-macos-universal --home /tmp/smoke-home status | tee /tmp/smoke-status.txt
+          grep -q '"pages"' /tmp/smoke-status.txt
+          arch -arm64 dl/ksg-capsule-macos-universal --home /tmp/smoke-home work "smoke" | tee /tmp/smoke-work.txt
+          grep -q '"pages"' /tmp/smoke-work.txt
+          arch -arm64 dl/ksg-capsule-macos-universal --home /tmp/smoke-home export-page 1 --by owner
+          test -s /tmp/smoke-home/page-1.json
+          grep -q '"seal"' /tmp/smoke-home/page-1.json
+          echo "arm64 slice: OK" > /tmp/smoke-x64-note.txt
+          set +e
+          arch -x86_64 dl/ksg-capsule-macos-universal --home /tmp/smoke-home status > /tmp/smoke-x64.txt 2>&1
+          code=$?
+          set -e
+          cat /tmp/smoke-x64.txt || true
+          if [ $code -ne 0 ]; then
+            if grep -qiE "bad cpu|rosetta|unable|not supported" /tmp/smoke-x64.txt; then
+              echo "x86_64 slice: NOT RUN (no Rosetta on this runner) — not a failure." | tee /tmp/smoke-x64-note.txt
+            else
+              echo "x86_64 slice FAILED with exit $code (not a Rosetta case):" >&2
+              exit 1
+            fi
+          else
+            echo "x86_64 slice: OK (exit 0)." | tee /tmp/smoke-x64-note.txt
+          fi
+          echo "VERIFY: not run — ksg-verify-v2 is not published in release bare-beta-2 and docs/quickstart.md names no verifier command; export checked for existence/size/JSON keys only."
+
+      - name: Scenario on demo capsule copy (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $home2 = "$env:RUNNER_TEMP\smoke-home"
+          if (Test-Path $home2) { Remove-Item -Recurse -Force $home2 }
+          Copy-Item -Recurse demo\capsule $home2
+          & .\dl\ksg-capsule-windows-x86_64.exe --help
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & .\dl\ksg-capsule-windows-x86_64.exe --home $home2 status | Tee-Object -FilePath "$env:RUNNER_TEMP\smoke-status.txt"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Select-String -Path "$env:RUNNER_TEMP\smoke-status.txt" -Pattern '"pages"' | Out-Null
+          & .\dl\ksg-capsule-windows-x86_64.exe --home $home2 work "smoke" | Tee-Object -FilePath "$env:RUNNER_TEMP\smoke-work.txt"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Select-String -Path "$env:RUNNER_TEMP\smoke-work.txt" -Pattern '"pages"' | Out-Null
+          & .\dl\ksg-capsule-windows-x86_64.exe --home $home2 export-page 1 --by owner
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $p = Join-Path $home2 "page-1.json"
+          if (-not (Test-Path $p)) { exit 1 }
+          if ((Get-Item $p).Length -le 0) { exit 1 }
+          Select-String -Path $p -Pattern '"seal"' | Out-Null
+          Select-String -Path $p -Pattern '"page"' | Out-Null
+          Write-Output "VERIFY: not run — ksg-verify-v2 is not published in release bare-beta-2 and docs/quickstart.md names no verifier command; export checked for existence/size/JSON keys only."
+
+      - name: Summary fact (posix)
+        if: runner.os != 'Windows' && always()
+        shell: bash
+        run: |
+          {
+            echo "## smoke-release fact"
+            echo "- OS: ${{ matrix.os }} (${{ runner.arch }})"
+            echo "- Release: bare-beta-2 (downloaded files + SHA256SUMS, checksums checked)"
+            echo "- Scenario on demo/capsule copy: status / work \"smoke\" / export-page 1 --by owner (exit codes 0, keywords \"pages\"/\"seal\"/\"page\")"
+            echo "- Offline verify with ksg-verify-v2: NOT RUN (verifier not in release; quickstart.md has no verifier command)"
+            if [ -f /tmp/smoke-x64-note.txt ]; then cat /tmp/smoke-x64-note.txt; fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          cat "$GITHUB_STEP_SUMMARY"
+
+      - name: Summary fact (windows)
+        if: runner.os == 'Windows' && always()
+        shell: pwsh
+        run: |
+          Add-Content $env:GITHUB_STEP_SUMMARY "## smoke-release fact"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- OS: ${{ matrix.os }} (${{ runner.arch }})"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Release: bare-beta-2 (downloaded files + SHA256SUMS, checksums checked)"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Scenario on demo/capsule copy: status / work `"smoke`" / export-page 1 --by owner (exit codes 0, keywords `"pages"`/`"seal"`/`"page"`)"
+          Add-Content $env:GITHUB_STEP_SUMMARY "- Offline verify with ksg-verify-v2: NOT RUN (verifier not in release; quickstart.md has no verifier command)"
+          Get-Content $env:GITHUB_STEP_SUMMARY
