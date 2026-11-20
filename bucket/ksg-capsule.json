@@ -1,0 +1,18 @@
+{
+  "version": "bare-beta-2",
+  "description": "KeysInGate capsule controller",
+  "homepage": "https://github.com/keysingate/keysingate-capsule",
+  "license": "Proprietary",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/keysingate/keysingate-capsule/releases/download/bare-beta-2/ksg-capsule-windows-x86_64.exe",
+      "hash": "7d63f20a9368f1a10dad0b6d9152a0ba3e2b91d16c32de7c205e5f00b9bf76a2"
+    }
+  },
+  "bin": [
+    [
+      "ksg-capsule-windows-x86_64.exe",
+      "ksg-capsule"
+    ]
+  ]
+}
