@@ -19,7 +19,7 @@ class KsgCapsule < Formula
   end
 
   def install
-    bin.install (build.macos? ? "ksg-capsule-macos-universal" : "ksg-capsule-linux-x86_64") => "ksg-capsule"
+    bin.install (OS.mac? ? "ksg-capsule-macos-universal" : "ksg-capsule-linux-x86_64") => "ksg-capsule"
   end
 
   test do
