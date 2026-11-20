@@ -50,6 +50,47 @@ All files are in the [`bare-beta-1` release](https://github.com/keysingate/keysi
 
 The macOS and Windows files are not code-signed: the system may warn on the first start; [docs/quickstart.md](docs/quickstart.md) says what to do. They were smoke-tested on GitHub-hosted Windows and Apple Silicon runners (the Intel Mac file was not run on an Intel Mac). ARM Linux and other systems: build from source (below).
 
+## Release bare-beta-2: what was tested
+
+Published files (release [`bare-beta-2`](https://github.com/keysingate/keysingate-capsule/releases/tag/bare-beta-2)):
+
+| File | SHA-256 (`SHA256SUMS`) |
+|---|---|
+| `ksg-capsule-linux-x86_64` | `275b37e01261100a0b73efb7d922e0f1d8bc83b006c12b6e237914592fe7245e` |
+| `ksg-capsule-macos-universal` | `1995214f839f1754b4a7a26229fa2dc3bb7bcf24e19675cb3ff14a3f115d63fc` |
+| `ksg-capsule-windows-x86_64.exe` | `7d63f20a9368f1a10dad0b6d9152a0ba3e2b91d16c32de7c205e5f00b9bf76a2` |
+
+Functional test of the published files: workflow [`smoke-release.yml`](.github/workflows/smoke-release.yml)
+(green run: https://github.com/keysingate/keysingate-capsule/actions/runs/44729770227).
+Each job downloads all published files plus `SHA256SUMS`, checks the checksums strictly,
+then runs the mail-1 user scenario on a copy of the repo demo capsule (`demo/capsule`,
+throw-away demo keys): `status`, `work "smoke"`, `export-page 1 --by owner` — all exit 0
+with the expected output (`"pages"`, `"seal"`/`"page"` in the export). The first run
+(https://github.com/keysingate/keysingate-capsule/actions/runs/44729440540) was red on
+the Windows *summary-reporting* step only; the Windows scenario itself was green there too,
+the reporting step was fixed and the re-run is green on all three systems.
+
+| Binary | Platform | What was checked | What was NOT checked / did not run |
+|---|---|---|---|
+| `ksg-capsule-linux-x86_64` | Linux x86_64 (CI `ubuntu-22.04`; plus a local run) | sha256 strictly; `--help` exit 0; scenario `status`/`work`/`export-page` on the demo-capsule copy, green in CI ([run](https://github.com/keysingate/keysingate-capsule/actions/runs/44729770227)) | ARM Linux was never built; a real service-issued capsule was exercised with this binary only on Linux in earlier local tests, not in this CI (CI used the demo capsule); antivirus behaviour not tested |
+| `ksg-capsule-macos-universal` | macOS (CI `macos-latest`, Apple Silicon runner) | sha256 (`shasum -a 256 -c`); `Mach-O universal binary with 2 architectures [x86_64, arm64]` (release build log `lipo -info`); `--help`; arm64 slice ran the full scenario, green ([run](https://github.com/keysingate/keysingate-capsule/actions/runs/44729770227)) | the x86_64 slice runs only when Rosetta is present, otherwise the job marks it “not run” without failing (step logs need sign-in, so the slice outcome was not observed directly); an Intel Mac on real hardware did not run; a real service-issued capsule on macOS did not run; Gatekeeper behaviour not tested |
+| `ksg-capsule-windows-x86_64.exe` | Windows (CI `windows-latest`, PowerShell) | sha256 (`Get-FileHash` compared line by line); `--help` exit 0; full scenario in PowerShell, green ([run](https://github.com/keysingate/keysingate-capsule/actions/runs/44729770227)) | ARM Windows was never built; a real service-issued capsule on Windows did not run; SmartScreen/antivirus behaviour not tested |
+
+Shared gaps for all three: offline page verification with `ksg-verify-v2` did **not** run —
+the verifier is not published in the release (only the three controller binaries plus
+`SHA256SUMS`), and `docs/quickstart.md` names no verifier command; the export was checked
+for existence, non-empty size and expected JSON keys only. Nothing above is promised
+beyond these runs.
+
+**binaries are not code-signed**: on macOS a browser download may need
+`xattr -d com.apple.quarantine ksg-capsule` (or System Settings → Privacy & Security →
+“Open Anyway”); on Windows SmartScreen → “More info” → “Run anyway”. Check the file
+against `SHA256SUMS` first. A real code signature (Apple Developer ID + notarization,
+Authenticode certificate) needs paid certificates and a publisher — it was not done.
+
+**If anything fails, build the controller yourself from this repository**: see
+[Build the controller from source](#build-the-controller-from-source).
+
 ## Build and test
 
 ```bash
