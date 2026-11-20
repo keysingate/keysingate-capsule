@@ -1,5 +1,6 @@
 # Release build of the ksg-capsule controller for three systems.
-# Triggers: manual (workflow_dispatch) or a push of a `bare-beta-*` tag.
+# Triggers: manual (workflow_dispatch), a push of a `bare-beta-*` tag (build + publish
+# a GitHub release), or a push to a `release/**` branch (build + check only, no publish).
 # Publishes a GitHub release with the same tag name carrying:
 #   ksg-capsule-linux-x86_64, ksg-capsule-macos-universal,
 #   ksg-capsule-windows-x86_64.exe, SHA256SUMS
@@ -10,6 +11,8 @@ on:
   push:
     tags:
       - "bare-beta-*"
+    branches:
+      - "release/**"
 permissions:
   contents: write
 jobs:
@@ -40,7 +43,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: windows, path: out/* }
   macos:
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - run: |
@@ -56,6 +59,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: macos, path: out/* }
   release:
+    if: startsWith(github.ref, 'refs/tags/bare-beta-')
     needs: [linux, windows, macos]
     runs-on: ubuntu-22.04
     steps:
