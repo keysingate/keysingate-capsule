@@ -63,6 +63,25 @@ The toolchain is pinned in `rust-toolchain.toml` (Rust 1.94.1). `k5_network_pro_
 Solana node (`solana-test-validator`) and is skipped above. The demo scripts expect the full core next to them: run them
 from a `keysingate-core` checkout, where the same files live (`scripts/`, `demo/`).
 
+## Build the controller from source
+
+The source is this repository; the build is reproducible from the tag.
+```bash
+git clone https://github.com/keysingate/keysingate-capsule
+cd keysingate-capsule
+git checkout bare-beta-2
+# Rust 1.94.1 is pinned in rust-toolchain.toml; rustup installs it on the first cargo call
+cargo build --locked --release -p ksg-capsule-reader --bin ksg-capsule
+# result: target/release/ksg-capsule  (ksg-capsule.exe on Windows)
+```
+- Dependencies from `keysingate-core` come over git (public); `--locked` keeps the versions of `Cargo.lock`.
+- Linux needs `gcc`; macOS needs the Xcode command-line tools (`xcode-select --install`); Windows needs Rust with the MSVC target and "Build Tools for Visual Studio" (C++ workload).
+- Windows (from Windows): same command builds `target/release/ksg-capsule.exe`; rename it to `ksg-capsule-windows-x86_64.exe` to match the release.
+- macOS universal (from macOS): `rustup target add x86_64-apple-darwin aarch64-apple-darwin`, build both with `--target`, join with `lipo -create -output ksg-capsule-macos-universal …` (the exact recipe is `.github/workflows/release-controller.yml`, job `macos`).
+- Check your build against the release: download `SHA256SUMS` from the [`bare-beta-2` release](https://github.com/keysingate/keysingate-capsule/releases/tag/bare-beta-2) and compare (`sha256sum`, `shasum -a 256`, `Get-FileHash`). The Linux build on the same toolchain should match `ksg-capsule-linux-x86_64` byte for byte.
+- To make your own capsule (issuer side): build the module `cargo build -p ksg-capsule-module --target wasm32-unknown-unknown --release` (after `rustup target add wasm32-unknown-unknown`), then `ksg-capsule --home DIR init --class bare --wasm target/wasm32-unknown-unknown/release/ksg_capsule_module.wasm` and `ksg-capsule --home DIR initiate`.
+- Step by step for each system: [docs/quickstart.md](docs/quickstart.md).
+
 ## Pre-existing work (a library)
 
 The core — signed journal, FROST client key, post-quantum signatures, anchors on Solana and Base, the offline checker —

@@ -1,0 +1,89 @@
+# Release build of the ksg-capsule controller for three systems.
+# Triggers: manual (workflow_dispatch) or a push of a `bare-beta-*` tag.
+# Publishes a GitHub release with the same tag name carrying:
+#   ksg-capsule-linux-x86_64, ksg-capsule-macos-universal,
+#   ksg-capsule-windows-x86_64.exe, SHA256SUMS
+# The macOS and Windows binaries are NOT code-signed (same as bare-beta-1).
+name: release-controller
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "bare-beta-*"
+permissions:
+  contents: write
+jobs:
+  linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo build --release --locked -p ksg-capsule-reader --bin ksg-capsule
+      - run: |
+          set -ex
+          mkdir out
+          cp target/release/ksg-capsule out/ksg-capsule-linux-x86_64
+          chmod +x out/ksg-capsule-linux-x86_64
+          ./out/ksg-capsule-linux-x86_64 --help
+      - uses: actions/upload-artifact@v4
+        with: { name: linux, path: out/* }
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cargo build --release --locked -p ksg-capsule-reader --bin ksg-capsule
+      - shell: pwsh
+        run: |
+          mkdir out
+          Copy-Item target\release\ksg-capsule.exe out\ksg-capsule-windows-x86_64.exe
+          & .\out\ksg-capsule-windows-x86_64.exe --help
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: out/* }
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          set -ex
+          rustup target add x86_64-apple-darwin aarch64-apple-darwin
+          cargo build --release --locked -p ksg-capsule-reader --bin ksg-capsule --target aarch64-apple-darwin
+          cargo build --release --locked -p ksg-capsule-reader --bin ksg-capsule --target x86_64-apple-darwin
+          mkdir out
+          lipo -create -output out/ksg-capsule-macos-universal target/aarch64-apple-darwin/release/ksg-capsule target/x86_64-apple-darwin/release/ksg-capsule
+          chmod +x out/ksg-capsule-macos-universal
+          ./out/ksg-capsule-macos-universal --help
+          lipo -info out/ksg-capsule-macos-universal
+      - uses: actions/upload-artifact@v4
+        with: { name: macos, path: out/* }
+  release:
+    needs: [linux, windows, macos]
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: |
+          set -ex
+          ls -la dist/
+          (cd dist && sha256sum ksg-capsule-linux-x86_64 ksg-capsule-macos-universal ksg-capsule-windows-x86_64.exe > SHA256SUMS)
+          cat dist/SHA256SUMS
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/ksg-capsule-linux-x86_64
+            dist/ksg-capsule-macos-universal
+            dist/ksg-capsule-windows-x86_64.exe
+            dist/SHA256SUMS
+          body: |
+            Controller `ksg-capsule` for three systems (built from this tag on native GitHub runners, Rust 1.94.1, `cargo build --locked --release -p ksg-capsule-reader`).
+
+            | System | File |
+            |---|---|
+            | Linux x86_64 (glibc 2.34+, Ubuntu 22.04+) | `ksg-capsule-linux-x86_64` |
+            | macOS, either architecture | `ksg-capsule-macos-universal` |
+            | Windows 10/11, 64-bit | `ksg-capsule-windows-x86_64.exe` |
+
+            Check every download against `SHA256SUMS` before the first start.
+
+            Not code-signed: on macOS a browser download may need `xattr -d com.apple.quarantine ksg-capsule` (or System Settings → Privacy & Security → Open Anyway); on Windows SmartScreen → "More info" → "Run anyway". ARM Linux and ARM Windows are not covered; the Intel Mac slice of the universal binary was built but not run on an Intel Mac. How to build it yourself: [README](https://github.com/keysingate/keysingate-capsule#build-the-controller-from-source).
