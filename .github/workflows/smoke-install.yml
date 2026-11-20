@@ -1,0 +1,47 @@
+# S9.3-check (S9b, R13 license fix): install ksg-capsule via Homebrew (macOS) and Scoop (Windows).
+# The tap/bucket *mechanism* (add with explicit repo URL) is tested against the
+# repo itself; the formula/manifest *content* is tested from this checkout, because
+# `brew install keysingate/capsule/ksg-capsule` and `scoop install ksg/ksg-capsule`
+# resolve only after pkg/homebrew-scoop is merged to main (see S9a_otchet.md).
+# Trigger scoped with `paths` so pushes to other smoke/** branches don't fire it.
+name: smoke-install
+'on':
+  push:
+    branches:
+      - smoke/pkg-install-2
+    paths:
+      - .github/workflows/smoke-install.yml
+      - Formula/**
+      - bucket/**
+  workflow_dispatch: {}
+permissions:
+  contents: read
+jobs:
+  brew-install:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tap with explicit URL, install local formula, run --help
+        run: |
+          set -ex
+          brew tap keysingate/capsule https://github.com/keysingate/keysingate-capsule
+          mkdir -p "$(brew --repo keysingate/capsule)/Formula"
+          cp ./Formula/ksg-capsule.rb "$(brew --repo keysingate/capsule)/Formula/ksg-capsule.rb"
+          brew install keysingate/capsule/ksg-capsule
+          ksg-capsule --help
+          echo "brew: tap + install + ksg-capsule --help exit 0" >> "$GITHUB_STEP_SUMMARY"
+  scoop-install:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
+          Invoke-RestMethod get.scoop.sh | Invoke-Expression
+          $env:PATH = "$env:USERPROFILE\scoop\shims;$env:PATH"
+          scoop bucket add ksg https://github.com/keysingate/keysingate-capsule
+          scoop install .\bucket\ksg-capsule.json
+          ksg-capsule --help
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          'scoop: bucket add + manifest install + ksg-capsule --help exit 0' | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
