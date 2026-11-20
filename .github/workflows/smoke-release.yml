@@ -164,8 +164,8 @@ jobs:
           Select-String -Path $p -Pattern '"page"' | Out-Null
           Write-Output "VERIFY: not run — ksg-verify-v2 is not published in release bare-beta-2 and docs/quickstart.md names no verifier command; export checked for existence/size/JSON keys only."
 
-      - name: Summary fact (posix)
-        if: runner.os != 'Windows' && always()
+      - name: Summary fact
+        if: always()
         shell: bash
         run: |
           {
@@ -174,17 +174,8 @@ jobs:
             echo "- Release: bare-beta-2 (downloaded files + SHA256SUMS, checksums checked)"
             echo "- Scenario on demo/capsule copy: status / work \"smoke\" / export-page 1 --by owner (exit codes 0, keywords \"pages\"/\"seal\"/\"page\")"
             echo "- Offline verify with ksg-verify-v2: NOT RUN (verifier not in release; quickstart.md has no verifier command)"
+            echo "- Shell note: scenario ran in PowerShell on Windows, in bash elsewhere; this summary always runs in bash"
             if [ -f /tmp/smoke-x64-note.txt ]; then cat /tmp/smoke-x64-note.txt; fi
+            if [ -f "$RUNNER_TEMP/smoke-x64-note.txt" ]; then cat "$RUNNER_TEMP/smoke-x64-note.txt"; fi
           } >> "$GITHUB_STEP_SUMMARY"
           cat "$GITHUB_STEP_SUMMARY"
-
-      - name: Summary fact (windows)
-        if: runner.os == 'Windows' && always()
-        shell: pwsh
-        run: |
-          Add-Content $env:GITHUB_STEP_SUMMARY "## smoke-release fact"
-          Add-Content $env:GITHUB_STEP_SUMMARY "- OS: ${{ matrix.os }} (${{ runner.arch }})"
-          Add-Content $env:GITHUB_STEP_SUMMARY "- Release: bare-beta-2 (downloaded files + SHA256SUMS, checksums checked)"
-          Add-Content $env:GITHUB_STEP_SUMMARY "- Scenario on demo/capsule copy: status / work `"smoke`" / export-page 1 --by owner (exit codes 0, keywords `"pages"`/`"seal"`/`"page"`)"
-          Add-Content $env:GITHUB_STEP_SUMMARY "- Offline verify with ksg-verify-v2: NOT RUN (verifier not in release; quickstart.md has no verifier command)"
-          Get-Content $env:GITHUB_STEP_SUMMARY
